@@ -1,4 +1,4 @@
-const { joinVoiceChannel, createAudioPlayer, createAudioResource, AudioPlayerStatus } = require('@discordjs/voice');
+const { joinVoiceChannel, createAudioPlayer, createAudioResource, AudioPlayerStatus, StreamType, VoiceConnectionStatus } = require('@discordjs/voice');
 
 const ytdl = require('ytdl-core');
 
@@ -17,14 +17,15 @@ class musicPlayer {
 
     }
 
-    listSongs(msg) {
+    async listSongs(msg) {
         if (this.songs.length === 0) {
             msg.reply(`Não a musica na lista`);
+        } else {
+            for (let i = 0; i < this.songs.length; i++) {
+                await msg.reply(`As musicas na lista são:\n${this.songs[i]}`);
+            }
         }
 
-        this.songs.forEach(el => {
-            msg.reply(`Lista das musicas:\n${el.titulo}`);
-        })
     }
 
     async addSong(msg, musicLink) {
@@ -55,6 +56,7 @@ class musicPlayer {
             console.log('Done')
         }
     }
+
     async musicPlay(msg, musicLink) {
         let channel = msg.member.voice.channel;
         if (!channel) return msg.reply('você precisa estar em um canal de voz');
@@ -89,26 +91,24 @@ class musicPlayer {
                 adapterCreator: channel.guild.voiceAdapterCreator
             })
 
-            this.play(msg.guild, song);
+            if (this.music.length !== 0) {
+                this.songs.push(song);
+            } else {
+                this.play(msg.guild, song);
+            }
 
             return true;
 
         } catch (error) {
             console.log(error)
             this.queue.delete(msg.guild.id)
-            return await msg.reply(`Um erro ocorreu ${songInfo.titulo} foi removido\n${error}`)
+            return await msg.reply(`Um erro ocorreu ${song.titulo} foi removido\n${error}`)
         }
     }
 
-    play(server, song) {
+    async play(server, song) {
 
-
-        if (this.music.length >= 1) {
-            this.songs.push(song);
-        } else {
-            this.music.push(song);
-        }
-
+        this.music.push(song);
         let music = this.music[0];
 
         let serverQueue = this.queue.get(server.id)
@@ -116,24 +116,64 @@ class musicPlayer {
 
         if (!music) {
 
-            serverQueue.VoiceChannel.leave()
+            console.log('nao a musica');
 
             this.queue.delete(server.id)
 
             return
         }
-        let resource = createAudioResource(ytdl(music.url), { inlineVolume: true })
 
-        resource.volume.setVolume(0.2)
+        //Teste
 
-        serverQueue.connection.subscribe(this.player)
+        serverQueue.connection.on(VoiceConnectionStatus.Ready, (oldState, newState) => {
 
-        this.player.play(resource)
+            // console.log(oldState);
+
+            if (newState) {
+                console.log('Connection is in the Ready state!');
+
+                setTimeout(() => {
+                    let resource = createAudioResource(ytdl(music.url), { inputType: StreamType.WebmOpus, inlineVolume: true });
+
+                    resource.volume.setVolume(0.2);
+
+                    serverQueue.connection.subscribe(this.player);
+
+                    this.player.play(resource);
+                }, 5000)
+
+                this.player.on(AudioPlayerStatus.Playing, () => {
+                    console.log('Audio está preste a começar');
+                });
+
+                this.player.on(AudioPlayerStatus.AutoPaused, () => {
+                    console.log('Algo deu errado');
+                })
+
+                this.player.on('error', error => {
+                    // console.log(error.resource);
+                    return;
+                });
+
+                this.player.on(AudioPlayerStatus.Idle, () => {
+                    console.log('Musica acabou');
+                    this.music.pop();
+                    let songNow = this.songs.shift();
+                    this.play(server, songNow);
+                });
+            }
+        });
+
+
+
+
+
 
     }
-    getNext(server) {
-        console.log("getNext!!")
-    }
+
+    // getNext(server, songNow) {
+    //     this.play(server, songNow);
+    // }
 
 }
 

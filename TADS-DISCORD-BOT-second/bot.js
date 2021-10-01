@@ -19,7 +19,16 @@ client.on('message', async (msg) => {
         return msg.reply(`ola **${msg.author}`)
     }
     else if (commands[0] === '!add') {
-        musicHandler.musicPlay(msg, commands[1])
+        if (commands[1] === undefined) {
+            console.log("deu erro");
+        }
+
+        try {
+            musicHandler.musicPlay(msg, commands[1])
+        } catch (error) {
+            console.log("Erro ao adicionar musica");
+            return;
+        }
 
     }
     else if (msg.content === '!pause') {
